@@ -119,12 +119,14 @@ int PositionChangeHandler(CPhidgetStepperHandle stepper,
 						  void *usrptr, int Index,
 						  long long Value)
 {
-    current_position = Value; // Update global variable keeping track of position
     if (initialised) {
         UpdateCurrent();
-
+        if (current_position != Value)
+        {
+          ROS_ERROR("YOUR ASSUMPTIONS ARE FALSE. MUAHAHAHAHA!");
+        }
         phidgets::stepper_params p;
-        p.position = Value;
+        p.position = current_position;
         p.engage = eng;
         p.velocity = vel;
         p.acceleration = accel;
@@ -293,7 +295,16 @@ int main(int argc, char* argv[])
         CPhidgetStepper_getCurrentMin(phid, 0, &_min_current);
 
         // Publishes to /phidgets/stepper/serial_number
-        stepper_pub = n.advertise<phidgets::stepper_params>(topic_name, buffer_length);
+        stepper_pub = n.advertise<phidgets::stepper_params>(topic_name, buffer_length, true);
+
+        //publish all the things once, then let latch
+        UpdateCurrent();
+        phidgets::stepper_params p;
+        p.position = current_position;
+        p.engage = eng;
+        p.velocity = vel;
+        p.acceleration = accel;
+        stepper_pub.publish(p);
 
         // start service which can be used to set motor position
         // Subscribes to /stepper/serial_number
