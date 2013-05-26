@@ -228,14 +228,14 @@ void stepperCallback(const phidgets::stepper_params::ConstPtr& s)
           accel = s->acceleration;
           CPhidgetStepper_setAcceleration (phid, 0, (double)s->acceleration);
         }
-        else
+        else if (accel == s->acceleration)
           ROS_WARN("Invalid acceleration requested ( %d <=   %d   <= %d )", _min_accel,accel,_max_accel);
         if (boundCheck(s->velocity, _min_vel, _min_vel) && vel != s->velocity)
         {
           vel = s->velocity;
           CPhidgetStepper_setVelocityLimit (phid, 0, (double)s->velocity);
         }
-        else
+        else if (vel == s->velocity)
           ROS_WARN("Invalid velocity requested ( %d <=   %d   <= %d )", _min_vel,vel,_max_vel);
         CPhidgetStepper_setTargetPosition (phid, 0, s->position);
         if (s->reset_position) {
