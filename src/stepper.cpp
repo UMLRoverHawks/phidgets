@@ -36,7 +36,7 @@
 #include <sstream>
 #include <phidget21.h>
 #include <std_msgs/String.h>
-#include "phidgets/stepper_params_better.h"
+#include "phidgets/stepper_params.h"
 
 // handle
 CPhidgetStepperHandle phid;
@@ -45,10 +45,6 @@ CPhidgetStepperHandle phid;
 ros::Publisher stepper_pub;
 
 bool initialised = false;
-long long current_position = 0;
-double holding_current = 0;
-double moving_current = 0;
-double current = 0;
 
 int AttachHandler(CPhidgetHandle phid, void *userptr)
 {
@@ -87,11 +83,13 @@ int PositionChangeHandler(CPhidgetStepperHandle stepper,
 						  void *usrptr, int Index,
 						  long long Value)
 {
-    current_position = Value; // Update global variable keeping track of position
     if (initialised) {
-        phidgets::stepper_params_better m;
+        phidgets::stepper_params m;
+        m.index = Index;
         m.position = Value;
         stepper_pub.publish(m);
+        ROS_INFO("Motor %d Current position %lld",
+				 Index, Value);
     }
     return 0;
 }
@@ -174,62 +172,46 @@ void disconnect(
 				CPhidgetStepperHandle &phid)
 {
     ROS_INFO("Closing...");
-    CPhidgetStepper_setCurrentLimit(phid,0,0.1);
     CPhidget_close((CPhidgetHandle)phid);
     CPhidget_delete((CPhidgetHandle)phid);
 }
 
 // Request to change stepper position
-void stepperCallback(const phidgets::stepper_params_better::ConstPtr& ptr)
+void stepperCallback(const phidgets::stepper_params::ConstPtr& ptr)
 {
     if (initialised) {
-        phidgets::stepper_params_better s = *ptr;
+        phidgets::stepper_params s = *ptr;
 
-        /*
-        // Lower the current limit
-        if( s.lower_current && (current != holding_current) ) {
-            CPhidgetStepper_setCurrentLimit(phid,0,(float)holding_current);
-            current = holding_current;
+        ROS_INFO("Motor %d Target position %lld Reference " \
+				 "Velocity %.2f Reference Acceleration %.2f", 
+				 s.index, s.position, s.velocity,
+				 s.acceleration);
+
+        int motor_index = (int)s.index;
+
+        if (!s.engage) {
+            CPhidgetStepper_setEngaged(phid, motor_index, 0);
         }
-        */
-
-        // Request current position
-        if ( s.request_position ) {
-            // Request position from motor. Should be stored in current_position.
-            CPhidgetStepper_getCurrentPosition(phid,0,&current_position);
-
-            // Publish a message to report current position.
-            phidgets::stepper_params_better m;
-            m.position = current_position;
-            m.spin_motor = false;
-            m.request_position = true;
-            stepper_pub.publish(m);
-            ROS_INFO("Position published as requested.");
-            return; // We don't want to actually move the motors, so stop here.
+        if (s.reset_position) {
+            CPhidgetStepper_setCurrentPosition(phid, 0, 0);
         }
-
-        // Spin the motor
-        if (s.spin_motor) {
-            CPhidgetStepper_setEngaged(phid, 0, 1);
-            CPhidgetStepper_setAcceleration (phid, 0, (double)s.acceleration);
-            CPhidgetStepper_setVelocityLimit (phid, 0, (double)s.velocity);
-            CPhidgetStepper_setTargetPosition (phid, 0, s.position);
-            CPhidgetStepper_setEngaged(phid, 0, 1); // Not sure if this needs to go before or after.
-        }
-        else {
-            CPhidgetStepper_setEngaged(phid, 0, 0);
+        CPhidgetStepper_setAcceleration (phid, motor_index,
+										 (double)s.acceleration);
+        CPhidgetStepper_setVelocityLimit (phid, motor_index,
+										  (double)s.velocity);
+        CPhidgetStepper_setTargetPosition (phid, motor_index,
+										   s.position);
+        if (s.engage) {
+            CPhidgetStepper_setEngaged(phid, motor_index, 1);
         }
     }
 }
 
 int main(int argc, char* argv[])
 {
-    // Set up ROS stuff
     ros::init(argc, argv, "phidgets_stepper");
     ros::NodeHandle n;
     ros::NodeHandle nh("~");
-
-    // Get motor information
     int serial_number = -1;
     nh.getParam("serial", serial_number);
     std::string name = "stepper";
@@ -240,15 +222,9 @@ int main(int argc, char* argv[])
     std::string topic_path = "phidgets/";
     nh.getParam("topic_path", topic_path);
 
-    // Loop rate
     int frequency = 30;
     nh.getParam("frequency", frequency);
 
-    // Current limits.
-    nh.getParam("holding_current",holding_current);
-    nh.getParam("moving_current",moving_current);
-
-    // Initialize the motor
     if (attach(phid, serial_number)) {
 		display_properties(phid);
 
@@ -263,19 +239,16 @@ int main(int argc, char* argv[])
             service_name += "/";
             service_name += ser;
         }
-        // Publishes to /phidgets/stepper/serial_number
         stepper_pub =
-			n.advertise<phidgets::stepper_params_better>(topic_name,
+			n.advertise<phidgets::stepper_params>(topic_name,
 												  buffer_length);
 
         // start service which can be used to set motor position
-        // Subscribes to /stepper/serial_number
-        ros::Subscriber sub = n.subscribe(service_name, 1, stepperCallback);
+        ros::Subscriber sub;
+        sub = n.subscribe(service_name, 1, stepperCallback);
 
         initialised = true;
         ros::Rate loop_rate(frequency);
-
-        CPhidgetStepper_setCurrentLimit(phid,0,(float)moving_current);
 
         while (ros::ok()) {
             ros::spinOnce();
