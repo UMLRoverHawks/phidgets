@@ -46,6 +46,7 @@ ros::Publisher stepper_pub;
 
 bool initialised = false;
 long long current_position = 0;
+long long target = 0;
 double holding_current = 0;
 double moving_current = 0;
 double current = 0,_max_current,_min_current;
@@ -53,6 +54,7 @@ double accel,_min_accel,_max_accel;
 double vel,_min_vel,_max_vel;
 int eng;
 int stopped;
+int serial_number = -1;
 
 void UpdateCurrent()
 {
@@ -75,6 +77,12 @@ void UpdateCurrent()
     else
       ROS_ERROR("Failed to set current to moving_current");
   }
+  printf("%d\
+	pos: %lld\
+	target: %lld\
+	current: %f\
+	stopped: %d\
+	engaged: %d\n", serial_number, current_position, target, current, stopped, eng);
 }
 
 bool boundCheck(double desired, double min, double max)
@@ -238,6 +246,7 @@ void stepperCallback(const phidgets::stepper_params::ConstPtr& s)
         else if (vel == s->velocity)
           ROS_WARN("Invalid velocity requested ( %d <=   %d   <= %d )", _min_vel,vel,_max_vel);
         CPhidgetStepper_setTargetPosition (phid, 0, s->position);
+	target = s->position;
         if (s->reset_position) {
           CPhidgetStepper_setCurrentPosition(phid, 0, 0);
         }
@@ -254,7 +263,6 @@ int main(int argc, char* argv[])
     ros::NodeHandle nh("~");
 
     // Get motor information
-    int serial_number = -1;
     nh.getParam("serial", serial_number);
     std::string name = "stepper";
     nh.getParam("name", name);
