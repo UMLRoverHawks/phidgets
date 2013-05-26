@@ -77,12 +77,12 @@ void UpdateCurrent()
     else
       ROS_ERROR("Failed to set current to moving_current");
   }
-  printf("%d\
+/*  printf("%d\
 	pos: %lld\
 	target: %lld\
 	current: %f\
 	stopped: %d\
-	engaged: %d\n", serial_number, current_position, target, current, stopped, eng);
+	engaged: %d\n", serial_number, current_position, target, current, stopped, eng);*/
 }
 
 bool boundCheck(double desired, double min, double max)
