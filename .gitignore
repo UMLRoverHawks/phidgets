@@ -4,3 +4,7 @@ msg_gen/
 srv_gen/
 src/phidgets/
 src/phidgets/
+.project
+.cproject
+.pydevproject
+cmake_install.cmake
