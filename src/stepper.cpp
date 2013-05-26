@@ -221,6 +221,7 @@ void disconnect(
 				CPhidgetStepperHandle &phid)
 {
     ROS_INFO("Closing...");
+    CPhidgetStepper_setEngaged(phid, 0, 0);
     CPhidget_close((CPhidgetHandle)phid);
     CPhidget_delete((CPhidgetHandle)phid);
 }
