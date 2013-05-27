@@ -58,6 +58,12 @@ int serial_number = -1;
 
 void UpdateCurrent()
 {
+  CPhidgetStepper_getAccelerationMin(phid, 0, &_max_accel);
+  CPhidgetStepper_getAccelerationMin(phid, 0, &_min_accel);
+  CPhidgetStepper_getVelocityMax(phid, 0, &_max_vel);
+  CPhidgetStepper_getVelocityMin(phid, 0, &_min_vel);
+  CPhidgetStepper_getCurrentMax(phid, 0, &_max_current);
+  CPhidgetStepper_getCurrentMin(phid, 0, &_min_current);
   CPhidgetStepper_getCurrentPosition(phid,0,&current_position);
   CPhidgetStepper_getStopped(phid, 0, &stopped);
   CPhidgetStepper_getEngaged(phid, 0, &eng);
@@ -87,7 +93,8 @@ void UpdateCurrent()
 
 bool boundCheck(double desired, double min, double max)
 {
-  return (desired < max && desired > min);
+  return true;
+  return (desired <= max && desired >= min);
 }
 
 int AttachHandler(CPhidgetHandle phid, void *userptr)
@@ -232,19 +239,19 @@ void stepperCallback(const phidgets::stepper_params::ConstPtr& s)
     if (initialised) {
         if (!s->engage)
           CPhidgetStepper_setEngaged(phid, 0, 0);
-        if (boundCheck(s->acceleration, _min_accel, _min_accel)  && accel != s->acceleration)
+        if (boundCheck(s->acceleration, _min_accel, _min_accel))
         {
           accel = s->acceleration;
           CPhidgetStepper_setAcceleration (phid, 0, (double)s->acceleration);
         }
-        else if (accel == s->acceleration)
+        else
           ROS_WARN("Invalid acceleration requested ( %d <=   %d   <= %d )", _min_accel,accel,_max_accel);
-        if (boundCheck(s->velocity, _min_vel, _min_vel) && vel != s->velocity)
+        if (boundCheck(s->velocity, _min_vel, _min_vel))
         {
           vel = s->velocity;
           CPhidgetStepper_setVelocityLimit (phid, 0, (double)s->velocity);
         }
-        else if (vel == s->velocity)
+        else
           ROS_WARN("Invalid velocity requested ( %d <=   %d   <= %d )", _min_vel,vel,_max_vel);
         CPhidgetStepper_setTargetPosition (phid, 0, s->position);
 	target = s->position;
@@ -296,14 +303,7 @@ int main(int argc, char* argv[])
             service_name += "/";
             service_name += ser;
         }
-        CPhidgetStepper_getAccelerationMin(phid, 0, &_max_accel);
-        CPhidgetStepper_getAccelerationMin(phid, 0, &_min_accel);
-        CPhidgetStepper_getVelocityMax(phid, 0, &_max_vel);
-        CPhidgetStepper_getVelocityMin(phid, 0, &_min_vel);
-        CPhidgetStepper_getCurrentMax(phid, 0, &_max_current);
-        CPhidgetStepper_getCurrentMin(phid, 0, &_min_current);
-
-        // Publishes to /phidgets/stepper/serial_number
+            // Publishes to /phidgets/stepper/serial_number
         stepper_pub = n.advertise<phidgets::stepper_params>(topic_name, buffer_length, true);
 
         //publish all the things once, then let latch
