@@ -30,6 +30,9 @@
  *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
+ 
+ * The math has been fixed to calculate the correct odometry 
+
  *********************************************************************/
 
 #include <stdio.h>
@@ -53,11 +56,11 @@ bool verbose = false;
 
 // normally on a differential drive system to when moving
 //  forwards the wheels are rotating in opposite directions
-int encoder_direction_left = -1;
+int encoder_direction_left = 1;
 int encoder_direction_right = 1;
 
 // distance between the wheel centres
-double wheelbase_mm = 400;
+double wheelbase_mm = 305;
 
 // encoder counts
 int current_encoder_count_left = 0;
@@ -92,11 +95,11 @@ double rotation_offset=0;
 
 // functions used to check signed integer wraparound
 int wrap(int a) {
-	return ((a + 1) > a);
+    return ((a + 1) > a);
 }
 
 bool check_wrap() {
-	return (wrap(~0u>>1));
+    return (wrap(~0u>>1));
 }
 
 // Update the left encoder count
@@ -108,8 +111,8 @@ void update_encoder_left(int count)
     }
     if (verbose) {
         // ROS_INFO("Left Encoder Count %d",
-		//          current_encoder_count_left -
-		//          start_encoder_count_left);
+        //          current_encoder_count_left -
+        //          start_encoder_count_left);
     }
 }
 
@@ -117,14 +120,14 @@ void update_encoder_left(int count)
 void update_encoder_right(int count)
 {
     current_encoder_count_right =
-		count * encoder_direction_right;
+        count * encoder_direction_right;
     if (start_encoder_count_right == 0) {
         start_encoder_count_right = current_encoder_count_right;
     }
     if (verbose) {
         // ROS_INFO("Right Encoder Count %d",
-		//           current_encoder_count_right -
-		//           start_encoder_count_right);
+        //           current_encoder_count_right -
+        //           start_encoder_count_right);
     }
 }
 
@@ -200,7 +203,7 @@ bool subscribe_to_encoders_by_index()
     }
 
     encoders_sub =
-		n.subscribe(encoder_topic, 1, encoderCallback);
+        n.subscribe(encoder_topic, 1, encoderCallback);
 
     return(success);
 }
@@ -211,56 +214,56 @@ bool subscribe_to_encoders_by_index()
  */
 bool subscribe_to_encoders()
 {
-	bool success = true;
-	ros::NodeHandle n;
-	ros::NodeHandle nh("~");
-	std::string topic_path = "phidgets/";
-	nh.getParam("topic_path", topic_path);
-	std::string encodername = "encoder";
-	nh.getParam("encodername", encodername);
-	std::string encoder_topic_base = topic_path + encodername;
-	nh.getParam("encoder_topic", encoder_topic_base);
-	for (int enc = 0; enc < 2; enc++) {
+    bool success = true;
+    ros::NodeHandle n;
+    ros::NodeHandle nh("~");
+    std::string topic_path = "phidgets/";
+    nh.getParam("topic_path", topic_path);
+    std::string encodername = "encoder";
+    nh.getParam("encodername", encodername);
+    std::string encoder_topic_base = topic_path + encodername;
+    nh.getParam("encoder_topic", encoder_topic_base);
+    for (int enc = 0; enc < 2; enc++) {
 
-		// get encoder phidget serial number
-		std::string encoder_param_name = "serialleft";
-		if (enc > 0) {
-			encoder_param_name = "serialright";
-		}
-		int serial_number = -1;
-		nh.getParam(encoder_param_name, serial_number);
-		if (serial_number == -1) {
-			success = false;
-			ROS_WARN("You must specify serial numbers " \
-					 "for the encoder Phidget devices");
-			break;
-		}
+        // get encoder phidget serial number
+        std::string encoder_param_name = "serialleft";
+        if (enc > 0) {
+            encoder_param_name = "serialright";
+        }
+        int serial_number = -1;
+        nh.getParam(encoder_param_name, serial_number);
+        if (serial_number == -1) {
+            success = false;
+            ROS_WARN("You must specify serial numbers " \
+                     "for the encoder Phidget devices");
+            break;
+        }
 
-		// get the topic name
-		std::string encoder_topic = encoder_topic_base;
-		if (serial_number > -1) {
-			char serial_number_str[10];            
-			sprintf(serial_number_str,"%d", serial_number);
-			encoder_topic += "/";
-			encoder_topic += serial_number_str;
-		}
+        // get the topic name
+        std::string encoder_topic = encoder_topic_base;
+        if (serial_number > -1) {
+            char serial_number_str[10];            
+            sprintf(serial_number_str,"%d", serial_number);
+            encoder_topic += "/";
+            encoder_topic += serial_number_str;
+        }
 
-		// subscribe to the topic
-		if (enc == 0) {
-			ROS_INFO("Left encoder: %s", encoder_topic.c_str());
-			left_encoder_sub =
-				n.subscribe(encoder_topic, 1,
-							leftEncoderCallback);
-		}
-		else {
-			ROS_INFO("Right encoder: %s",
-					 encoder_topic.c_str());
-			right_encoder_sub =
-				n.subscribe(encoder_topic, 1,
-							rightEncoderCallback);
-		}
-	}
-	return(success);
+        // subscribe to the topic
+        if (enc == 0) {
+            ROS_INFO("Left encoder: %s", encoder_topic.c_str());
+            left_encoder_sub =
+                n.subscribe(encoder_topic, 1,
+                            leftEncoderCallback);
+        }
+        else {
+            ROS_INFO("Right encoder: %s",
+                     encoder_topic.c_str());
+            right_encoder_sub =
+                n.subscribe(encoder_topic, 1,
+                            rightEncoderCallback);
+        }
+    }
+    return(success);
 }
 
 /*!
@@ -268,52 +271,50 @@ bool subscribe_to_encoders()
  * \param dt time elapsed in seconds
  */
 void update_velocities(
-					   double dt)
+                       double dt)
 {
     if (dt > 0) {
         int curr_encoder_count_left =
-			current_encoder_count_left;
+            current_encoder_count_left;
         int curr_encoder_count_right =
-			current_encoder_count_right;
+            current_encoder_count_right;
 
         double cos_current = cos(theta);
         double sin_current = sin(theta);
 
         // relying on the compiler for wraparound here
         int dist_left_counts =
-			curr_encoder_count_left -
-			previous_encoder_count_left;
+            curr_encoder_count_left -
+            previous_encoder_count_left;
         int dist_right_counts =
-			curr_encoder_count_right -
-			previous_encoder_count_right;
+            curr_encoder_count_right -
+            previous_encoder_count_right;
 
         if (dist_left_counts != dist_right_counts) {
             // convert from counts to standard units
-            double dist_left_mm =
-				(double)dist_left_counts /
-				left_encoder_counts_per_mm;
-            double dist_right_mm =
-				(double)dist_right_counts /
-				right_encoder_counts_per_mm;
-
-            double right_left = dist_right_mm - dist_left_mm;
-
-            double a =
-				wheelbase_mm * (dist_right_mm + dist_left_mm) *
-				0.5 / right_left;
-
-            double fraction = right_left / wheelbase_mm;
             const double mm_to_m = 1.0 / 1000;
-            vx = a * (sin(fraction + theta) - sin_current) *
-				mm_to_m;
-            vy = -a * (cos(fraction + theta) - cos_current) *
-				mm_to_m;
+        double wheelbase_m = wheelbase_mm * mm_to_m;
+            double dist_left_mm =
+                (double)dist_left_counts /
+                left_encoder_counts_per_mm;
+            double dist_right_mm =
+                (double)dist_right_counts /
+                right_encoder_counts_per_mm;
+
+            double right_left = (dist_right_mm - dist_left_mm) * mm_to_m;
+
+            double a = (dist_right_mm + dist_left_mm) * 0.5 * mm_to_m;
+
+            double fraction = right_left / wheelbase_m;
+
+            vx = a * (cos(theta) + (fraction/2.0));
+            vy = a * (sin(theta) + (fraction/2.0));
             vtheta = fraction;
 
             // ROS_INFO("pose %.3f %.3f orientation %.3f",
-			//  (float)x, (float)y, (float)theta);
+            //  (float)x, (float)y, (float)theta);
             ROS_DEBUG("Encoders %.3f %.3f",
-					  dist_left_mm, dist_right_mm);
+                      dist_left_mm, dist_right_mm);
         }
         else {
             vx=vy=vtheta=0;
@@ -329,8 +330,8 @@ int main(int argc, char** argv)
 {
     if (!check_wrap()) {
         ROS_ERROR("This version of GCC does not support " \
-				  "signed integer wraparound.  " \
-				  "Try using the -fwrapv compile option.");
+                  "signed integer wraparound.  " \
+                  "Try using the -fwrapv compile option.");
     }
     else {
 
@@ -350,7 +351,7 @@ int main(int argc, char** argv)
         n.setParam(reset_topic, false);
 
         ros::Publisher odom_pub =
-			n.advertise<nav_msgs::Odometry>(name, 50);
+            n.advertise<nav_msgs::Odometry>(name, 50);
         tf::TransformBroadcaster odom_broadcaster;
 
         // get encoder indexes
@@ -364,16 +365,16 @@ int main(int argc, char** argv)
         if (direction!=-1) encoder_direction_left = 1;
         direction=1;
         nh.getParam("encoderdirectionright",
-					encoder_direction_right);
+                    encoder_direction_right);
         if (direction!=1) encoder_direction_right = -1;
 
         // connect to the encoders
         bool subscribed_to_encoders = false;
         if ((encoder_index_left > 0) &&
-			(encoder_index_right > 0) &&
+            (encoder_index_right > 0) &&
             (encoder_index_left!=encoder_index_right)) {
             subscribed_to_encoders =
-				subscribe_to_encoders_by_index();
+                subscribe_to_encoders_by_index();
         }
         else {
             subscribed_to_encoders = subscribe_to_encoders();
@@ -388,15 +389,15 @@ int main(int argc, char** argv)
             left_encoder_counts_per_mm = 0;
             right_encoder_counts_per_mm = 0;
             nh.getParam("countspermmleft",
-						left_encoder_counts_per_mm);
+                        left_encoder_counts_per_mm);
             if (left_encoder_counts_per_mm < 1) {
-				left_encoder_counts_per_mm = 1000;
-			}
+                left_encoder_counts_per_mm = 1000;
+            }
             nh.getParam("countspermmright",
-						right_encoder_counts_per_mm);
+                        right_encoder_counts_per_mm);
             if (right_encoder_counts_per_mm < 1) {
-				right_encoder_counts_per_mm = 1000;
-			}
+                right_encoder_counts_per_mm = 1000;
+            }
             wheelbase_mm = 0;
             nh.getParam("wheelbase", wheelbase_mm);
             if (wheelbase_mm < 1) wheelbase_mm = 400;
@@ -404,7 +405,7 @@ int main(int argc, char** argv)
             nh.getParam("verbose", verbose);
             nh.setParam("verbose", false);
 
-            int frequency = 22;
+            int frequency = 50;
             nh.getParam("frequency", frequency);
 
             ros::Time current_time, last_time;
@@ -434,19 +435,19 @@ int main(int argc, char** argv)
                 double dt = (current_time - last_time).toSec();
  
                 // update the velocity estimate based upon
-				// encoder values
+                // encoder values
                 update_velocities(dt);
 
                 // compute odometry in a typical way given
-				// the velocities of the robot       
+                // the velocities of the robot       
                 x += vx;
                 y += vy;
                 theta += vtheta;
    
                 // since all odometry is 6DOF we'll need a
-				// quaternion created from yaw
+                // quaternion created from yaw
                 geometry_msgs::Quaternion odom_quat =
-					tf::createQuaternionMsgFromYaw(theta);
+                    tf::createQuaternionMsgFromYaw(theta);
   
                 // first, we'll publish the transform over tf
                 geometry_msgs::TransformStamped odom_trans;
@@ -458,12 +459,14 @@ int main(int argc, char** argv)
                 odom_trans.transform.translation.y = y;
                 odom_trans.transform.translation.z = 0.0;
                 odom_trans.transform.rotation = odom_quat;
+
+        
    
                 // send the transform
                 odom_broadcaster.sendTransform(odom_trans);
   
                 // next, we'll publish the odometry
-				//  message over ROS
+                //  message over ROS
                 nav_msgs::Odometry odom;
                 odom.header.stamp = current_time;
                 odom.header.frame_id = frame_id;
@@ -473,12 +476,15 @@ int main(int argc, char** argv)
                 odom.pose.pose.position.y = y;
                 odom.pose.pose.position.z = 0.0;
                 odom.pose.pose.orientation = odom_quat;
-  
+
+
+
                 // set the velocity
                 odom.child_frame_id = base_link;
                 odom.twist.twist.linear.x = vx/dt;
                 odom.twist.twist.linear.y = vy/dt;
                 odom.twist.twist.angular.z = vtheta/dt;
+
 
                 // publish the message
                 odom_pub.publish(odom);
